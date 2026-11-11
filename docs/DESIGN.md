@@ -2,7 +2,7 @@
 
 **Sabi no Nihongo — 一日一語** is a Rust rewrite of Kotoba Daily (`../japanese-daily-word`): a personal journal where you log one (or a few) Japanese words every day, keep a streak, browse your vault, and review with flashcards.
 
-Hosted on GitHub Pages at `https://sabi-no-nihongo.github.io`, so the app must be a **static site**: Rust compiled to WebAssembly, no server required.
+Hosted on GitHub Pages, so the app must be a **static site**: Rust compiled to WebAssembly, no server required. Because the repo is owned by `achmadsyariefha` (not an account named `sabi-no-nihongo`), it is a **project site** served under a subpath: `https://achmadsyariefha.github.io/sabi-no-nihongo.github.io/`. The build works at any base path (see §9).
 
 ---
 
@@ -297,16 +297,23 @@ trunk serve --open
 [build]
 target = "index.html"
 dist = "dist"
-public_url = "/"            # user/org site → served at domain root
+public_url = "/"            # local dev; CI overrides with --public-url
 ```
+
+**Base path.** GitHub serves a repo named `<owner>.github.io` at the domain root and any other repo under `/<repo>/`. The app supports both:
+
+- `index.html` has `<base data-trunk-public-url />`; Trunk fills it with `--public-url` and prefixes every asset URL.
+- `services::base::router_base()` reads the `<base>` path at runtime and passes it to `<Router base=…>`.
+- Internal links use `app_href("/vault")`, because leptos_router uses absolute `<A href>` values as-is and would skip the base.
 
 **GitHub Actions (`.github/workflows/pages.yml`)**
 
 1. Checkout → install Rust stable + `wasm32-unknown-unknown` → cache cargo.
-2. `cargo test -p sabi-core`
-3. Install Trunk + Tailwind standalone CLI → `trunk build --release`
-4. `cp dist/index.html dist/404.html` (so deep links like `/vault` work on Pages)
-5. `actions/upload-pages-artifact` → `actions/deploy-pages`
+2. `cargo test -p sabi-core`, Clippy on the WASM target
+3. Pick the public URL from the repo name: `/` for `<owner>.github.io`, otherwise `/<repo>/`
+4. Install Trunk → `trunk build --release --public-url <that>`
+5. `cp dist/index.html dist/404.html` (so deep links like `/vault` work on Pages)
+6. `actions/upload-pages-artifact` → `actions/deploy-pages`
 
 Size target: < 400 KB gzipped WASM (`opt-level = "z"`, `lto = true`, `codegen-units = 1`, `wasm-opt -Oz` via Trunk).
 
@@ -338,7 +345,7 @@ An optional sync server that replaces `japanese-daily-word-backend` (Express + P
 
 | Concern | Choice |
 |---|---|
-| HTTP | **Axum** on Tokio, `tower-http` for CORS (allow `https://sabi-no-nihongo.github.io`), tracing, compression |
+| HTTP | **Axum** on Tokio, `tower-http` for CORS (allow the Pages origin, `https://achmadsyariefha.github.io`), tracing, compression |
 | Database | **Postgres** via **SQLx** (compile-time checked queries), migrations in `crates/server/migrations` |
 | Auth | `argon2` password hashes, `jsonwebtoken` access tokens |
 | Validation | `core::import` rules + `serde` types shared with the web app |

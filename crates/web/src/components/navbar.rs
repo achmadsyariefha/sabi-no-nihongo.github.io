@@ -2,6 +2,7 @@ use leptos::prelude::*;
 use leptos_router::components::A;
 
 use crate::components::icon::{Icon, IconName};
+use crate::services::base::app_href;
 use crate::state::use_app_state;
 
 struct Tab {
@@ -25,7 +26,7 @@ pub fn Navbar() -> impl IntoView {
     view! {
         <header class="sticky top-0 z-40 bg-[#fcfbf9]/90 dark:bg-dim-950/90 backdrop-blur-md border-b border-zinc-200/80 dark:border-dim-800 transition-colors">
             <div class="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-2">
-                <A href="/" attr:class="flex items-center gap-3 group select-none">
+                <A href=app_href("/") attr:class="flex items-center gap-3 group select-none">
                     <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-sakura-500 to-sakura-400 text-white flex items-center justify-center font-jp-serif font-bold text-xl shadow-md shadow-sakura-500/20 group-hover:scale-105 transition-transform">
                         "語"
                     </div>
@@ -47,7 +48,7 @@ pub fn Navbar() -> impl IntoView {
                         .map(|tab| {
                             view! {
                                 <A
-                                    href=tab.href
+                                    href=app_href(tab.href)
                                     exact=true
                                     attr:class="flex items-center gap-2 px-3.5 py-1.5 rounded-full text-sm font-medium transition-all text-zinc-600 dark:text-dim-400 hover:text-zinc-900 dark:hover:text-dim-200 aria-[current=page]:bg-zinc-900 aria-[current=page]:text-white aria-[current=page]:font-semibold aria-[current=page]:shadow-sm dark:aria-[current=page]:bg-white dark:aria-[current=page]:text-dim-900"
                                 >
@@ -105,7 +106,7 @@ pub fn BottomNav() -> impl IntoView {
                 .map(|tab| {
                     view! {
                         <A
-                            href=tab.href
+                            href=app_href(tab.href)
                             exact=true
                             attr:class="flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-medium text-zinc-500 dark:text-dim-400 aria-[current=page]:text-sakura-600 dark:aria-[current=page]:text-sakura-400"
                         >

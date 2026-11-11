@@ -1,7 +1,7 @@
 [build]
 target = "index.html"
 dist = "dist"
-# User/org Pages site, served at the domain root.
+# Local dev serves at the root. CI passes --public-url for the Pages subpath.
 public_url = "/"
 
 [tools]
