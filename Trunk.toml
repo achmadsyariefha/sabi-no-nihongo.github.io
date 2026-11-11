@@ -1,0 +1,12 @@
+[build]
+target = "index.html"
+dist = "dist"
+# User/org Pages site, served at the domain root.
+public_url = "/"
+
+[tools]
+# Tailwind v3 so the reference tailwind.config.js works unchanged.
+tailwindcss = "3.4.17"
+
+[serve]
+port = 8080
