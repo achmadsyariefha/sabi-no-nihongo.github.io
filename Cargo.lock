@@ -1221,6 +1221,7 @@ dependencies = [
  "sabi-core",
  "serde",
  "serde_json",
+ "wasm-bindgen",
  "web-sys",
 ]
 
