@@ -3,6 +3,7 @@
 use std::time::Duration;
 
 use leptos::prelude::*;
+use sabi_core::activity::DayCounts;
 use sabi_core::model::{self, DraftError};
 use sabi_core::settings::{Settings, Theme};
 use sabi_core::{DailyEntry, DailyLimit, DateKey, EntryDraft, StreakStats, tags};
@@ -12,6 +13,7 @@ use crate::services::{clock, ids, storage, theme};
 const SETTINGS_KEY: &str = "sabi.settings.v1";
 const ENTRIES_KEY: &str = "sabi.entries.v1";
 const CUSTOM_TAGS_KEY: &str = "sabi.customTags.v1";
+const REVIEW_LOG_KEY: &str = "sabi.reviewLog.v1";
 
 #[derive(Clone, Copy)]
 pub struct AppState {
@@ -26,6 +28,8 @@ pub struct AppState {
     /// Local date; rolls over at midnight while the app is open.
     pub today: RwSignal<DateKey>,
     pub stats: Memo<StreakStats>,
+    /// Flashcards reviewed per day (filled by the Review page).
+    pub review_log: RwSignal<DayCounts>,
 }
 
 impl AppState {
@@ -49,6 +53,15 @@ impl AppState {
         Effect::new(move |_| settings.with(|s| storage::save(SETTINGS_KEY, s)));
         Effect::new(move |_| entries.with(|list| storage::save(ENTRIES_KEY, list)));
         Effect::new(move |_| custom_tags.with(|t| storage::save(CUSTOM_TAGS_KEY, t)));
+        let review_log = RwSignal::new(storage::load_day_counts(REVIEW_LOG_KEY));
+        // Skip the first run so opening the app doesn't create an empty log.
+        Effect::new(move |prev: Option<()>| {
+            review_log.with(|log| {
+                if prev.is_some() {
+                    storage::save(REVIEW_LOG_KEY, log);
+                }
+            });
+        });
 
         set_interval(
             move || {
@@ -60,7 +73,7 @@ impl AppState {
             Duration::from_secs(60),
         );
 
-        Self { settings, is_dark, entries, custom_tags, editing: RwSignal::new(None), today, stats }
+        Self { settings, is_dark, entries, custom_tags, editing: RwSignal::new(None), today, stats, review_log }
     }
 
     /// Keeps the `dark` class on <html> in sync with the theme.
