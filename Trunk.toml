@@ -1,0 +1,12 @@
+[build]
+target = "index.html"
+dist = "dist"
+# Local dev serves at the root. CI passes --public-url for the Pages subpath.
+public_url = "/"
+
+[tools]
+# Tailwind v3 so the reference tailwind.config.js works unchanged.
+tailwindcss = "3.4.17"
+
+[serve]
+port = 8080

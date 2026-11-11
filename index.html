@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- Trunk fills href with --public-url, e.g. "/sabi-no-nihongo.github.io/" on a project Pages site. -->
+    <base data-trunk-public-url />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Sabi no Nihongo — a daily Japanese word and translation journal." />
+    <title>Sabi no Nihongo · 一日一語</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌸</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700;800&family=Noto+Serif+JP:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <!-- Apply the saved/system theme before the WASM loads to avoid a flash. -->
+    <script>
+      try {
+        var s = JSON.parse(localStorage.getItem('sabi.settings.v1') || 'null');
+        var t = s && s.data && s.data.theme;
+        if (t === 'dark' || ((!t || t === 'system') && matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.classList.add('dark');
+        }
+      } catch (e) {}
+    </script>
+    <link data-trunk rel="tailwind-css" href="style/input.css" />
+    <link data-trunk rel="rust" href="crates/web/Cargo.toml" data-wasm-opt="z" />
+  </head>
+  <body class="bg-[#fcfbf9] text-zinc-800 dark:bg-dim-950 dark:text-dim-100 font-sans antialiased transition-colors duration-200 selection:bg-sakura-200 selection:text-sakura-900 dark:selection:bg-sakura-900 dark:selection:text-sakura-200"></body>
+</html>
