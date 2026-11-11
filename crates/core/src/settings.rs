@@ -2,6 +2,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::model::DailyLimit;
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Theme {
@@ -16,6 +18,8 @@ pub enum Theme {
 #[serde(rename_all = "camelCase", default)]
 pub struct Settings {
     pub theme: Theme,
+    /// Words-per-day goal (not a hard limit).
+    pub daily_limit: DailyLimit,
 }
 
 impl Theme {
@@ -37,12 +41,16 @@ mod tests {
     fn missing_fields_use_defaults() {
         let s: Settings = serde_json::from_str("{}").unwrap();
         assert_eq!(s.theme, Theme::System);
+        assert_eq!(s.daily_limit, DailyLimit::One);
+        // Phase 0 settings (theme only) still load.
+        let old: Settings = serde_json::from_str(r#"{"theme":"light"}"#).unwrap();
+        assert_eq!(old.theme, Theme::Light);
     }
 
     #[test]
     fn theme_serializes_lowercase() {
-        let s = Settings { theme: Theme::Dark };
-        assert_eq!(serde_json::to_string(&s).unwrap(), r#"{"theme":"dark"}"#);
+        let s = Settings { theme: Theme::Dark, daily_limit: DailyLimit::Three };
+        assert_eq!(serde_json::to_string(&s).unwrap(), r#"{"theme":"dark","dailyLimit":3}"#);
     }
 
     #[test]

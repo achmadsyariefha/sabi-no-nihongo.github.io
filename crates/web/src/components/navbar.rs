@@ -66,7 +66,7 @@ pub fn Navbar() -> impl IntoView {
                         title="Current streak"
                     >
                         <Icon name=IconName::Flame />
-                        <span>"0"</span>
+                        <span>{move || state.stats.with(|s| s.current)}</span>
                     </div>
                     <button
                         type="button"

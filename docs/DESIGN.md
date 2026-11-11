@@ -54,7 +54,7 @@ Alternatives considered: **Dioxus** (good, but heavier and more opinionated abou
 
 ## 3. Features (carried over from the reference)
 
-1. **Today** — dashboard with streak, today's count vs. daily limit (1 / 2 / 3 / 5 / unlimited), proverb of the day, and the entry form:
+1. **Today** — dashboard with streak, today's count vs. daily goal (1 / 2 / 3 / 5 / no goal; a goal, not a hard limit: "bonus" words can still be added), proverb of the day, and the entry form:
    - Japanese (required), reading, romaji, translation, notes
    - Tags: presets (Favorite, Anime & Manga, Poetic, Idiom (四字熟語), Daily Life, Emotion, Food & Nature, Slang & Casual, JLPT N5–N1) + saved custom tags
    - Favorite toggle, optional example sentence (JP / reading / translation)
@@ -207,7 +207,7 @@ pub struct ReviewSession {
 | `sabi.reviewSession.v1` | `ReviewSession` |
 | `sabi.reviewLog.v1` | `BTreeMap<DateKey, u32>` |
 
-Every value is wrapped as `{ "v": 1, "data": ... }` so later migrations can branch on `v`. On load: parse → migrate → validate (reuse `core::import`) → fall back to defaults on error, never panic. A missing `sabi.entries.v1` means a fresh install: the app starts with an empty list (no seed data).
+Every value is wrapped as `{ "v": 1, "data": ... }` so later migrations can branch on `v`. On load: parse → migrate → validate (reuse `core::import`) → fall back to defaults on error, never panic. Lists (entries, custom tags) load item by item: unreadable items are skipped and the raw stored text is first copied to `<key>.backup`, so a bad item can never cause the next save to wipe the journal. A missing `sabi.entries.v1` means a fresh install: the app starts with an empty list (no seed data).
 
 ---
 
