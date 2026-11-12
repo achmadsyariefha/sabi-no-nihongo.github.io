@@ -54,15 +54,16 @@ cargo run -p sabi-server
 
 Docker: `docker build -f crates/server/Dockerfile -t sabi-server .` (from the repo root). The image listens on `PORT` (8080 by default) and works on Fly.io, Render or Cloud Run with a hosted Postgres such as Neon or Supabase.
 
-### Free hosting: Render + Neon
+### Free hosting: Vercel + Neon
 
-No credit card needed. [`render.yaml`](render.yaml) describes the server.
+No credit card needed. The server runs on Vercel's Container Runtime (Hobby plan) from [`Dockerfile.vercel`](Dockerfile.vercel); the database is a free Neon Postgres.
 
-1. **Neon** (database): create a project (region: Singapore), then copy the connection string with **connection pooling turned off**. It looks like `postgresql://user:password@ep-....aws.neon.tech/neondb?sslmode=require`.
-2. **Render** (server): New → **Blueprint** → pick this repo. Paste the Neon string as `DATABASE_URL` and apply. `JWT_SECRET` is generated for you. The first build takes about 10 minutes.
-3. Open `https://<service>.onrender.com/api/health`; it should say `{"status":"ok"}`.
+1. **Neon** (database): create a project (region: Singapore), click **Connect**, turn **connection pooling off**, and copy the connection string (`postgresql://…neon.tech/neondb?sslmode=require`).
+2. **Vercel** (server): **Add New → Project**, import this repo, keep the root directory, and add these environment variables before deploying:
+   `DATABASE_URL` (the Neon string), `JWT_SECRET` (`openssl rand -hex 32`), `ALLOWED_ORIGINS=https://achmadsyariefha.github.io`, `PORT=8080`.
+3. Open `https://<project>.vercel.app/api/health`; it should say `{"status":"ok"}`.
 
-Free Render servers sleep after about 15 idle minutes; the first request afterwards takes up to a minute.
+Vercel scales the server to zero after 5 idle minutes; the next request starts it again in a few seconds. [`vercel.json`](vercel.json) skips builds when only the web app changed.
 
 The API matches the old Express backend under `/api` (`/auth`, `/entries`, `/stats`, `/review`, `/srs`), plus `POST /api/sync`, which the web app uses.
 

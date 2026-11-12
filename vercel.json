@@ -1,0 +1,4 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "ignoreCommand": "git diff --quiet HEAD^ HEAD -- crates/server crates/core Cargo.toml Cargo.lock Dockerfile.vercel vercel.json"
+}
