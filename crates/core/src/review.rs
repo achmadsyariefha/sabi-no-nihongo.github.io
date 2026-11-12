@@ -13,6 +13,8 @@ pub enum ReviewFilter {
     #[default]
     All,
     Favorites,
+    /// Words due today by the SM-2 schedule (see `srs`).
+    Due,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -128,7 +130,7 @@ impl ReviewSession {
 /// The filtered entries, oldest first, or in the shuffled `order`. Words
 /// added after a shuffle go at the end.
 pub fn deck<'a>(entries: &'a [DailyEntry], filter: ReviewFilter, order: &[String]) -> Vec<&'a DailyEntry> {
-    let mut deck: Vec<&DailyEntry> = entries.iter().filter(|e| filter == ReviewFilter::All || e.is_favorite).collect();
+    let mut deck: Vec<&DailyEntry> = entries.iter().filter(|e| filter != ReviewFilter::Favorites || e.is_favorite).collect();
     deck.sort_by(|a, b| a.date.cmp(&b.date).then(a.created_at.cmp(&b.created_at)));
     if !order.is_empty() {
         // Stable sort: ids missing from `order` keep date order at the end.

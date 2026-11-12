@@ -5,6 +5,7 @@ use std::time::Duration;
 use leptos::prelude::*;
 use sabi_core::activity::{self, DayCounts};
 use sabi_core::review::{Mark, ReviewSession};
+use sabi_core::srs::{self, Rating, Schedule};
 use sabi_core::model::{self, DraftError};
 use sabi_core::settings::{Settings, Theme};
 use sabi_core::{DailyEntry, DailyLimit, DateKey, EntryDraft, StreakStats, tags};
@@ -16,6 +17,7 @@ const ENTRIES_KEY: &str = "sabi.entries.v1";
 const CUSTOM_TAGS_KEY: &str = "sabi.customTags.v1";
 const REVIEW_LOG_KEY: &str = "sabi.reviewLog.v1";
 const REVIEW_SESSION_KEY: &str = "sabi.reviewSession.v1";
+const SRS_KEY: &str = "sabi.srs.v1";
 
 #[derive(Clone, Copy)]
 pub struct AppState {
@@ -36,6 +38,12 @@ pub struct AppState {
     pub review: RwSignal<ReviewSession>,
     /// Whether the Backup window is open.
     pub backup_open: RwSignal<bool>,
+    /// SM-2 schedule per word id.
+    pub srs: RwSignal<Schedule>,
+    /// Words due by the end of today.
+    pub due_count: Memo<usize>,
+    /// Bumped to fire confetti.
+    pub celebrate: RwSignal<u32>,
 }
 
 impl AppState {
@@ -73,6 +81,15 @@ impl AppState {
         let review = RwSignal::new(saved_review.unwrap_or_default().for_today(today.get_untracked()));
         Effect::new(move |_| review.with(|r| storage::save(REVIEW_SESSION_KEY, r)));
 
+        let mut schedule: Schedule = storage::load_map(SRS_KEY);
+        entries.with_untracked(|list| srs::prune(&mut schedule, list));
+        let srs_signal = RwSignal::new(schedule);
+        Effect::new(move |_| srs_signal.with(|s| storage::save(SRS_KEY, s)));
+        let due_count = Memo::new(move |_| {
+            let cutoff = clock::start_of_day_ms(today.get().next());
+            entries.with(|list| srs_signal.with(|s| srs::due_count(list, s, cutoff)))
+        });
+
         set_interval(
             move || {
                 let now = clock::today();
@@ -84,7 +101,12 @@ impl AppState {
             Duration::from_secs(60),
         );
 
-        Self { settings, is_dark, entries, custom_tags, editing: RwSignal::new(None), today, stats, review_log, review, backup_open: RwSignal::new(false) }
+        Self { settings, is_dark, entries, custom_tags, editing: RwSignal::new(None), today, stats, review_log, review,
+            backup_open: RwSignal::new(false),
+            srs: srs_signal,
+            due_count,
+            celebrate: RwSignal::new(0),
+        }
     }
 
     /// Keeps the `dark` class on <html> in sync with the theme.
@@ -124,6 +146,9 @@ impl AppState {
 
     pub fn delete(self, id: &str) {
         self.entries.update(|list| list.retain(|e| e.id != id));
+        self.srs.update(|s| {
+            s.remove(id);
+        });
         if self.editing.get_untracked().as_deref() == Some(id) {
             self.editing.set(None);
         }
@@ -148,6 +173,22 @@ impl AppState {
         self.review_log.update(|log| activity::record_review(log, day));
     }
 
+    /// Answers a Due card: updates its SM-2 schedule and the review log.
+    pub fn rate_card(self, id: &str, rating: Rating) {
+        let now = clock::now_ms();
+        self.srs.update(|s| {
+            let next = s.get(id).cloned().unwrap_or_default().review(rating, now);
+            s.insert(id.to_owned(), next);
+        });
+        let day = self.today.get_untracked();
+        self.review_log.update(|log| activity::record_review(log, day));
+    }
+
+    /// Fires confetti (unless the user prefers reduced motion).
+    pub fn fire_confetti(self) {
+        self.celebrate.update(|n| *n += 1);
+    }
+
     /// Adds imported words; a word with the same id is replaced.
     pub fn import(self, incoming: Vec<DailyEntry>) {
         let all_tags: Vec<String> = incoming.iter().flat_map(|e| e.tags.iter().cloned()).collect();
@@ -166,7 +207,8 @@ impl AppState {
         self.custom_tags.set(Vec::new());
         self.review.set(ReviewSession::new(self.today.get_untracked()));
         self.review_log.set(DayCounts::new());
-        for key in [ENTRIES_KEY, CUSTOM_TAGS_KEY, REVIEW_LOG_KEY] {
+        self.srs.set(Schedule::new());
+        for key in [ENTRIES_KEY, CUSTOM_TAGS_KEY, REVIEW_LOG_KEY, SRS_KEY] {
             storage::remove(&format!("{key}.backup"));
         }
     }
