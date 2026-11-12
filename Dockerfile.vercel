@@ -1,0 +1,23 @@
+# Sync server image for Vercel's Container Runtime (free on the Hobby plan).
+# Vercel picks this file up from the repo root and sends all traffic to it.
+# Set DATABASE_URL, JWT_SECRET, ALLOWED_ORIGINS and PORT=8080 in the
+# Vercel project's environment variables. The web app itself is deployed
+# separately to GitHub Pages.
+FROM rust:1-bookworm AS build
+WORKDIR /app
+COPY Cargo.toml Cargo.lock ./
+COPY crates ./crates
+# The workspace release profile is tuned for a tiny WASM file. Build the
+# server for speed instead: faster to compile, less memory.
+ENV CARGO_PROFILE_RELEASE_OPT_LEVEL=3 \
+    CARGO_PROFILE_RELEASE_LTO=thin \
+    CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16 \
+    CARGO_PROFILE_RELEASE_PANIC=unwind
+RUN cargo build --release --locked -p sabi-server
+
+# Small runtime image with glibc and CA certificates, running as non-root.
+FROM gcr.io/distroless/cc-debian12:nonroot
+COPY --from=build /app/target/release/sabi-server /usr/local/bin/sabi-server
+ENV PORT=8080
+EXPOSE 8080
+ENTRYPOINT ["/usr/local/bin/sabi-server"]
