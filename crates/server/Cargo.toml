@@ -1,0 +1,24 @@
+[package]
+name = "sabi-server"
+description = "Optional sync server for Sabi no Nihongo (Axum + Postgres)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+sabi-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+axum = { version = "0.8", features = ["macros"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "signal"] }
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "macros", "migrate", "uuid"] }
+tower-http = { version = "0.6", features = ["cors", "trace", "compression-gzip", "limit"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+argon2 = { version = "0.5", features = ["std"] }
+jsonwebtoken = "9"
+uuid = { version = "1", features = ["v4", "serde"] }
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"

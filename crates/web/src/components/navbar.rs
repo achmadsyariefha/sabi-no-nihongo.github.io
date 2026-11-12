@@ -85,8 +85,8 @@ pub fn Navbar() -> impl IntoView {
                     <button
                         type="button"
                         class="p-2 rounded-full text-zinc-600 dark:text-dim-300 hover:bg-zinc-100 dark:hover:bg-dim-800 transition-colors"
-                        title="Backup & export"
-                        aria-label="Backup & export"
+                        title="Backup & sync"
+                        aria-label="Backup & sync"
                         on:click=move |_| state.backup_open.set(true)
                     >
                         <Icon name=IconName::Download class="w-5 h-5" />
