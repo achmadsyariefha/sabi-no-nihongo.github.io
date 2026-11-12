@@ -3,6 +3,7 @@ use leptos_router::components::{Route, Router, Routes};
 use leptos_router::path;
 
 use crate::components::backup_modal::BackupModal;
+use crate::components::confetti::Confetti;
 use crate::components::footer::Footer;
 use crate::components::navbar::{BottomNav, Navbar};
 use crate::pages::{calendar::CalendarPage, not_found::NotFound, review::ReviewPage, today::TodayPage, vault::VaultPage};
@@ -30,6 +31,7 @@ pub fn App() -> impl IntoView {
                 <Footer />
                 <BottomNav />
                 <BackupModal />
+                <Confetti />
             </div>
         </Router>
     }

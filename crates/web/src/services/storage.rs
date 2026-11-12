@@ -50,6 +50,29 @@ pub fn load_list<T: DeserializeOwned>(key: &str) -> Vec<T> {
     list
 }
 
+/// Loads a map item by item, skipping values that no longer parse (with a
+/// backup, as in [`load_list`]).
+pub fn load_map<T: DeserializeOwned>(key: &str) -> BTreeMap<String, T> {
+    let Ok(Some(raw)) = LocalStorage::raw().get_item(key) else {
+        return BTreeMap::new();
+    };
+    let map = serde_json::from_str::<Versioned<BTreeMap<String, serde_json::Value>>>(&raw)
+        .ok()
+        .filter(|stored| stored.v == VERSION)
+        .map(|stored| stored.data);
+    let Some(map) = map else {
+        keep_backup(key, &raw, "unreadable");
+        return BTreeMap::new();
+    };
+    let total = map.len();
+    let out: BTreeMap<String, T> =
+        map.into_iter().filter_map(|(k, v)| serde_json::from_value(v).ok().map(|v| (k, v))).collect();
+    if out.len() < total {
+        keep_backup(key, &raw, &format!("skipped {} of {total} items", total - out.len()));
+    }
+    out
+}
+
 /// Loads a `{ "YYYY-MM-DD": count }` map, dropping bad pairs (with a backup,
 /// as in [`load_list`]).
 pub fn load_day_counts(key: &str) -> DayCounts {

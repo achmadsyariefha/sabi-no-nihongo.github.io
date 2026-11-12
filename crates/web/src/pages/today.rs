@@ -7,6 +7,8 @@ use crate::components::entry_form::EntryForm;
 use crate::components::icon::{Icon, IconName};
 use crate::components::stat_cards::StatCards;
 use crate::state::use_app_state;
+use leptos_router::hooks::use_navigate;
+use sabi_core::review::ReviewFilter;
 
 const PAGER_BTN: &str = "p-2 rounded-full border border-zinc-200 dark:border-dim-700 text-zinc-600 dark:text-dim-300 hover:bg-zinc-100 dark:hover:bg-dim-800 disabled:opacity-30 disabled:hover:bg-transparent";
 
@@ -23,6 +25,39 @@ pub fn TodayPage() -> impl IntoView {
     let goal_met = move || state.daily_limit().is_met(today_entries.with(|l| l.len()));
 
     let on_edit = Callback::new(move |id: String| state.editing.set(Some(id)));
+
+    let navigate = use_navigate();
+    // navigate() adds the router base itself, so pass the bare path.
+    let review_due = move |_| {
+        state.review.update(|r| r.set_filter(ReviewFilter::Due));
+        navigate("/review", Default::default());
+    };
+    let due_banner = move || {
+        let n = state.due_count.get();
+        (n > 0).then(|| {
+            let review_due = review_due.clone();
+            view! {
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-indigoPaper-100 dark:border-dim-800 bg-indigoPaper-50/60 dark:bg-dim-900 px-4 py-3">
+                    <p class="flex items-center gap-2 text-sm text-zinc-700 dark:text-dim-200">
+                        <Icon name=IconName::Layers class="w-4 h-4 text-indigoPaper-600 dark:text-indigoPaper-300" />
+                        <span>
+                            <b>{n}</b>
+                            {if n == 1 { " word is" } else { " words are" }}
+                            " due for review today."
+                        </span>
+                    </p>
+                    <button
+                        type="button"
+                        class="inline-flex items-center justify-center gap-1 px-4 py-2 rounded-full text-sm font-semibold bg-zinc-900 dark:bg-white text-white dark:text-dim-900 hover:opacity-90"
+                        on:click=review_due
+                    >
+                        "Review now"
+                        <Icon name=IconName::ChevronRight />
+                    </button>
+                </div>
+            }
+        })
+    };
 
     let main = move || {
         // 1. Editing an existing word (from today, or from the Vault).
@@ -72,6 +107,7 @@ pub fn TodayPage() -> impl IntoView {
                     on_saved=Callback::new(move |_| {
                         adding.set(false);
                         index.set(usize::MAX);
+                        state.fire_confetti();
                     })
                     on_cancel=(!first).then(|| Callback::new(move |_: ()| adding.set(false)))
                 />
@@ -163,6 +199,7 @@ pub fn TodayPage() -> impl IntoView {
                 }}
             </div>
             <StatCards />
+            {due_banner}
             {main}
         </div>
     }

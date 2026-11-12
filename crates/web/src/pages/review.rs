@@ -1,13 +1,16 @@
+use leptos::ev;
 use leptos::prelude::*;
 use leptos_router::components::A;
 use sabi_core::DailyEntry;
 use sabi_core::review::{self, Mark, ReviewFilter};
+use sabi_core::srs::{self, Rating};
+use wasm_bindgen::JsCast;
 
 use crate::components::empty_state::EmptyState;
 use crate::components::heatmap::{Heatmap, Palette};
 use crate::components::icon::{Icon, IconName};
 use crate::services::base::app_href;
-use crate::services::speech;
+use crate::services::{clock, speech};
 use crate::state::use_app_state;
 
 const TOOL_BTN: &str = "p-2 rounded-xl bg-white dark:bg-dim-800 border border-zinc-200 dark:border-dim-700 text-zinc-600 dark:text-dim-300 hover:bg-zinc-50 dark:hover:bg-dim-700 transition-colors";
@@ -26,15 +29,28 @@ pub fn ReviewPage() -> impl IntoView {
     let state = use_app_state();
     let session = state.review;
 
-    // Rebuild the deck only when the words, filter or shuffle change.
+    // Time used to order the Due queue. Updated on each answer, not on a
+    // timer, so the current card never changes under the user.
+    let now_ms = RwSignal::new(clock::now_ms());
+
+    // Rebuild the deck only when the words, filter or shuffle change
+    // (or, for Due, the schedule).
     let deck_key = Memo::new(move |_| session.with(|s| (s.filter, s.order.clone())));
     let deck = Memo::new(move |_| {
         let (filter, order) = deck_key.get();
+        if filter == ReviewFilter::Due {
+            let cutoff = clock::start_of_day_ms(state.today.get().next());
+            let now = now_ms.get();
+            return state.entries.with(|list| {
+                state.srs.with(|s| srs::due_queue(list, s, now, cutoff).into_iter().cloned().collect::<Vec<DailyEntry>>())
+            });
+        }
         state.entries.with(|list| review::deck(list, filter, &order).into_iter().cloned().collect::<Vec<DailyEntry>>())
     });
+    // In Due mode the current card is always the head of the queue.
     let index = Memo::new(move |_| {
         let n = deck.with(Vec::len);
-        session.with(|s| s.index_in(n))
+        if deck_key.with(|k| k.0) == ReviewFilter::Due { 0 } else { session.with(|s| s.index_in(n)) }
     });
     let counts = Memo::new(move |_| {
         deck.with(|d| {
@@ -58,9 +74,63 @@ pub fn ReviewPage() -> impl IntoView {
         let i = index.get_untracked();
         let id = deck.with_untracked(|d| d.get(i).map(|e| e.id.clone()));
         if let Some(id) = id {
-            state.mark_card(&id, m, deck.with_untracked(Vec::len));
+            let n = deck.with_untracked(Vec::len);
+            state.mark_card(&id, m, n);
+            if index.get_untracked() >= n {
+                state.fire_confetti();
+            }
         }
     };
+    let rate = move |r: Rating| {
+        let id = deck.with_untracked(|d| d.first().map(|e| e.id.clone()));
+        if let Some(id) = id {
+            state.rate_card(&id, r);
+            now_ms.set(clock::now_ms());
+            flipped.set(false);
+            if deck.with_untracked(Vec::is_empty) {
+                state.fire_confetti();
+            }
+        }
+    };
+    // 1 / 2 answer in either mode.
+    let answer = move |known: bool| {
+        if filter() == ReviewFilter::Due {
+            rate(if known { Rating::Pass } else { Rating::Fail });
+        } else {
+            mark(if known { Mark::Known } else { Mark::NeedReview });
+        }
+    };
+
+    // Keyboard: Space flips, 1 = need review, 2 = remembered, arrows move.
+    let handle = window_event_listener(ev::keydown, move |e| {
+        if state.backup_open.get_untracked() || e.ctrl_key() || e.meta_key() || e.alt_key() || e.repeat() {
+            return;
+        }
+        let key = e.key();
+        if let Some(el) = e.target().and_then(|t| t.dyn_into::<web_sys::Element>().ok()) {
+            let tag = el.tag_name();
+            if matches!(tag.as_str(), "INPUT" | "TEXTAREA" | "SELECT") {
+                return;
+            }
+            // Space or Enter on a focused button already clicks it.
+            if tag == "BUTTON" && (key == " " || key == "Enter") {
+                return;
+            }
+        }
+        let due = filter() == ReviewFilter::Due;
+        match key.as_str() {
+            " " => {
+                e.prevent_default();
+                flipped.update(|f| *f = !*f);
+            }
+            "1" => answer(false),
+            "2" => answer(true),
+            "ArrowLeft" if !due => go_to(index.get_untracked().saturating_sub(1)),
+            "ArrowRight" if !due => go_to(index.get_untracked() + 1),
+            _ => {}
+        }
+    });
+    on_cleanup(move || handle.remove());
     let shuffle = move |_| {
         deck.with_untracked(|d| {
             let refs: Vec<&DailyEntry> = d.iter().collect();
@@ -81,7 +151,13 @@ pub fn ReviewPage() -> impl IntoView {
                     "Review"
                 </h1>
                 <p class="text-xs text-zinc-500 dark:text-dim-400 mt-0.5">
-                    "Flip each card, then say whether you remembered it."
+                    {move || {
+                        if filter() == ReviewFilter::Due {
+                            "Spaced repetition: words you remember come back less and less often."
+                        } else {
+                            "Flip each card, then say whether you remembered it."
+                        }
+                    }}
                 </p>
             </div>
             <div class="flex items-center gap-2">
@@ -107,13 +183,34 @@ pub fn ReviewPage() -> impl IntoView {
                         <Icon name=IconName::Star class="w-3 h-3 fill-current text-amber-400" />
                         "Favorites (" {move || state.stats.with(|s| s.favorites)} ")"
                     </button>
+                    <button
+                        type="button"
+                        class=move || filter_btn(filter() == ReviewFilter::Due)
+                        aria-pressed=move || (filter() == ReviewFilter::Due).to_string()
+                        title="Spaced repetition: words due today"
+                        on:click=move |_| {
+                            now_ms.set(clock::now_ms());
+                            set_filter(ReviewFilter::Due);
+                        }
+                    >
+                        <Icon name=IconName::RotateCw class="w-3 h-3" />
+                        "Due (" {move || state.due_count.get()} ")"
+                    </button>
                 </div>
-                <button type="button" class=TOOL_BTN title="Shuffle the deck" aria-label="Shuffle the deck" on:click=shuffle>
-                    <Icon name=IconName::Shuffle />
-                </button>
-                <button type="button" class=TOOL_BTN title="Start today's review over" aria-label="Start today's review over" on:click=restart>
-                    <Icon name=IconName::RotateCcw />
-                </button>
+                <Show when=move || filter() != ReviewFilter::Due>
+                    <button type="button" class=TOOL_BTN title="Shuffle the deck" aria-label="Shuffle the deck" on:click=shuffle>
+                        <Icon name=IconName::Shuffle />
+                    </button>
+                    <button
+                        type="button"
+                        class=TOOL_BTN
+                        title="Start today's review over"
+                        aria-label="Start today's review over"
+                        on:click=restart
+                    >
+                        <Icon name=IconName::RotateCcw />
+                    </button>
+                </Show>
             </div>
         </div>
     };
@@ -147,8 +244,49 @@ pub fn ReviewPage() -> impl IntoView {
         }
     };
 
+    let due_progress = move || {
+        let left = deck.with(Vec::len);
+        let since = clock::start_of_day_ms(state.today.get());
+        let done = state.srs.with(|s| srs::reviewed_since(s, since));
+        let pct = (done * 100).checked_div(done + left).unwrap_or(100);
+        view! {
+            <div class="space-y-1.5">
+                <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs font-semibold text-zinc-500 dark:text-dim-400">
+                    <span>{left} " due · " {done} " reviewed today"</span>
+                    <span>{pct} "% done"</span>
+                </div>
+                <div class="w-full h-2 rounded-full bg-zinc-100 dark:bg-dim-800 overflow-hidden">
+                    <div
+                        class="h-full bg-gradient-to-r from-indigoPaper-500 to-indigoPaper-400 transition-all duration-300"
+                        style:width=format!("{pct}%")
+                    ></div>
+                </div>
+                <p class="text-[11px] text-zinc-400 dark:text-dim-500">
+                    "A word you miss comes back in 10 minutes. One you remember waits 1 day, then 6, then longer."
+                </p>
+            </div>
+        }
+    };
+
     let main = move || {
         let n = deck.with(Vec::len);
+        if n == 0 && filter() == ReviewFilter::Due && state.entries.with(|l| !l.is_empty()) {
+            let next = state.entries.with(|list| state.srs.with(|s| srs::next_due(list, s)));
+            let next_day = next.map(|ms| clock::date_of(ms).format_ja()).unwrap_or_default();
+            return view! {
+                <div class="space-y-6">
+                    {due_progress}
+                    <section class="rounded-3xl border-2 border-zinc-200/90 dark:border-dim-800 bg-white dark:bg-dim-900 p-8 text-center space-y-3">
+                        <p class="font-jp-serif text-5xl font-bold text-zinc-900 dark:text-white">"完了"</p>
+                        <h2 class="text-xl font-semibold text-zinc-900 dark:text-white">"All caught up"</h2>
+                        <p class="text-sm text-zinc-600 dark:text-dim-300">
+                            "Nothing else is due today. Next review: " <span class="font-jp">{next_day}</span> "."
+                        </p>
+                    </section>
+                </div>
+            }
+            .into_any();
+        }
         if n == 0 {
             if filter() == ReviewFilter::Favorites {
                 return view! {
@@ -178,6 +316,28 @@ pub fn ReviewPage() -> impl IntoView {
         }
 
         let i = index.get();
+        if filter() == ReviewFilter::Due {
+            let card = deck.with_untracked(|d| d[0].clone());
+            let schedule = state.srs.with(|s| s.get(&card.id).cloned());
+            let info = match schedule {
+                None => "New word".to_owned(),
+                Some(c) if c.interval == 0 => "Learning again".to_owned(),
+                Some(c) if c.interval == 1 => "Last gap: 1 day".to_owned(),
+                Some(c) => format!("Last gap: {} days", c.interval),
+            };
+            return view! {
+                <div class="space-y-6">
+                    {due_progress}
+                    <Flashcard card flipped current_mark=None info />
+                    <div class="flex items-center gap-2 w-full sm:justify-end">
+                        <MarkButton mark=Mark::NeedReview current=None on_click=Callback::new(move |_| rate(Rating::Fail)) />
+                        <MarkButton mark=Mark::Known current=None on_click=Callback::new(move |_| rate(Rating::Pass)) />
+                    </div>
+                    {shortcut_hint(true)}
+                </div>
+            }
+            .into_any();
+        }
         if i >= n {
             let (known, need) = counts.get_untracked();
             return view! {
@@ -229,10 +389,21 @@ pub fn ReviewPage() -> impl IntoView {
                         </button>
                     </div>
                     <div class="flex items-center gap-2 w-full sm:w-auto">
-                        <MarkButton mark=Mark::NeedReview current=current_mark count=Signal::derive(move || counts.get().1) on_click=Callback::new(move |_| mark(Mark::NeedReview)) />
-                        <MarkButton mark=Mark::Known current=current_mark count=Signal::derive(move || counts.get().0) on_click=Callback::new(move |_| mark(Mark::Known)) />
+                        <MarkButton
+                            mark=Mark::NeedReview
+                            current=current_mark
+                            count=Signal::derive(move || counts.get().1)
+                            on_click=Callback::new(move |_| mark(Mark::NeedReview))
+                        />
+                        <MarkButton
+                            mark=Mark::Known
+                            current=current_mark
+                            count=Signal::derive(move || counts.get().0)
+                            on_click=Callback::new(move |_| mark(Mark::Known))
+                        />
                     </div>
                 </div>
+                {shortcut_hint(false)}
             </div>
         }
         .into_any()
@@ -248,7 +419,14 @@ pub fn ReviewPage() -> impl IntoView {
 }
 
 #[component]
-fn MarkButton(mark: Mark, current: Option<Mark>, #[prop(into)] count: Signal<usize>, on_click: Callback<()>) -> impl IntoView {
+fn MarkButton(
+    mark: Mark,
+    current: Option<Mark>,
+    /// Shown in brackets after the label.
+    #[prop(optional, into)]
+    count: Option<Signal<usize>>,
+    on_click: Callback<()>,
+) -> impl IntoView {
     let active = current == Some(mark);
     let (class, icon, label) = match (mark, active) {
         (Mark::NeedReview, true) => ("bg-rose-500 text-white border-rose-600 ring-2 ring-rose-300", IconName::CircleX, "Need review"),
@@ -272,13 +450,21 @@ fn MarkButton(mark: Mark, current: Option<Mark>, #[prop(into)] count: Signal<usi
             on:click=move |_| on_click.run(())
         >
             <Icon name=icon />
-            {label} " (" {count} ")"
+            {label}
+            {count.map(|c| view! { " (" {c} ")" })}
         </button>
     }
 }
 
 #[component]
-fn Flashcard(card: DailyEntry, flipped: RwSignal<bool>, current_mark: Option<Mark>) -> impl IntoView {
+fn Flashcard(
+    card: DailyEntry,
+    flipped: RwSignal<bool>,
+    current_mark: Option<Mark>,
+    /// Extra note in the header, e.g. the card's SM-2 state.
+    #[prop(optional, into)]
+    info: Option<String>,
+) -> impl IntoView {
     let speaking = RwSignal::new(false);
     let japanese = StoredValue::new(card.japanese.clone());
     let speak = move |_| {
@@ -353,6 +539,14 @@ fn Flashcard(card: DailyEntry, flipped: RwSignal<bool>, current_mark: Option<Mar
                 <div class="flex items-center gap-2">
                     <span class="font-semibold uppercase tracking-wider">{move || if flipped.get() { "Back" } else { "Front" }}</span>
                     {badge}
+                    {info
+                        .map(|i| {
+                            view! {
+                                <span class="px-2 py-0.5 rounded-full bg-indigoPaper-50 dark:bg-dim-800 text-indigoPaper-600 dark:text-indigoPaper-300 font-semibold text-[10px]">
+                                    {i}
+                                </span>
+                            }
+                        })}
                 </div>
                 {card.is_favorite.then(|| view! { <Icon name=IconName::Star class="w-4 h-4 fill-current text-amber-400" /> })}
             </div>
@@ -402,5 +596,16 @@ fn Flashcard(card: DailyEntry, flipped: RwSignal<bool>, current_mark: Option<Mar
                 </div>
             </div>
         </section>
+    }
+}
+
+/// Keyboard shortcuts, shown on larger screens only.
+fn shortcut_hint(due: bool) -> impl IntoView {
+    view! {
+        <p class="hidden sm:block text-center text-[11px] text-zinc-400 dark:text-dim-500">
+            "Keys: " <kbd class="font-sans font-semibold">"Space"</kbd> " flip · " <kbd class="font-sans font-semibold">"1"</kbd>
+            " need review · " <kbd class="font-sans font-semibold">"2"</kbd> " remembered"
+            {(!due).then(|| view! { " · " <kbd class="font-sans font-semibold">"← →"</kbd> " move" })}
+        </p>
     }
 }

@@ -7,6 +7,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Sabi no Nihongo — a daily Japanese word and translation journal." />
     <title>Sabi no Nihongo · 一日一語</title>
+    <meta name="theme-color" content="#f43f75" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌸</text></svg>" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -21,6 +24,17 @@
         }
       } catch (e) {}
     </script>
+    <!-- Offline support. Skipped on localhost so it never caches dev builds. -->
+    <script>
+      if ('serviceWorker' in navigator && !/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) {
+        addEventListener('load', function () {
+          navigator.serviceWorker.register('sw.js').catch(function () {});
+        });
+      }
+    </script>
+    <link data-trunk rel="copy-file" href="public/manifest.webmanifest" />
+    <link data-trunk rel="copy-file" href="public/sw.js" />
+    <link data-trunk rel="copy-dir" href="public/icons" />
     <link data-trunk rel="tailwind-css" href="style/input.css" />
     <link data-trunk rel="rust" href="crates/web/Cargo.toml" data-wasm-opt="z" />
   </head>

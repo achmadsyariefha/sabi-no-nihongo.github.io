@@ -51,3 +51,28 @@
 .rotate-y-180 {
   transform: rotateY(180deg);
 }
+
+/* Confetti burst (see components/confetti.rs) */
+@keyframes sabi-confetti {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+    opacity: 1;
+  }
+  30% {
+    transform: translate3d(calc(var(--dx) * 0.6), var(--rise), 0) rotate(calc(var(--rot) * 0.3));
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(var(--dx), 50vh, 0) rotate(var(--rot));
+    opacity: 0;
+  }
+}
+
+.confetti-piece {
+  position: absolute;
+  width: 8px;
+  height: 12px;
+  border-radius: 2px;
+  animation: sabi-confetti var(--dur) cubic-bezier(0.2, 0.7, 0.4, 1) var(--delay) forwards;
+  will-change: transform, opacity;
+}
