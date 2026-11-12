@@ -28,3 +28,6 @@ rustc-ice-*.txt
 
 # Local preview config (machine-specific paths)
 /.claude/launch.json
+
+# Server secrets
+.env

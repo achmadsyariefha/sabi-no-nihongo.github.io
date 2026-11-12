@@ -14,6 +14,7 @@ use crate::state::AppState;
 pub fn App() -> impl IntoView {
     let state = AppState::load();
     state.sync_theme();
+    state.start_sync();
     provide_context(state);
 
     view! {

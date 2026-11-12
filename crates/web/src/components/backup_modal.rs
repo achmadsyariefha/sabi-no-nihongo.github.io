@@ -8,6 +8,7 @@ use sabi_core::DailyEntry;
 use sabi_core::{export, import};
 
 use crate::components::icon::{Icon, IconName};
+use crate::components::sync_panel::SyncPanel;
 use crate::services::{clock, files};
 use crate::state::use_app_state;
 
@@ -167,7 +168,7 @@ fn BackupDialog() -> impl IntoView {
                 <div class="rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50/70 dark:bg-rose-950/30 p-3 space-y-3">
                     <p class="text-sm text-rose-800 dark:text-rose-200">
                         "This deletes all " <b>{words(count())}</b>
-                        ", your custom tags and your review history from this browser. It can't be undone."
+                        ", your custom tags and your review history from this browser. It can't be undone. If you sync, you'll be signed out first, so the server keeps its copy."
                     </p>
                     <div class="flex flex-wrap justify-end gap-2">
                         <button
@@ -216,8 +217,8 @@ fn BackupDialog() -> impl IntoView {
                             <Icon name=IconName::Download class="w-5 h-5" />
                         </div>
                         <div>
-                            <h2 id="backup-title" class="text-lg font-bold text-zinc-900 dark:text-white">"Backup & export"</h2>
-                            <p class="text-xs text-zinc-500">"Save your words to a file, or bring them back."</p>
+                            <h2 id="backup-title" class="text-lg font-bold text-zinc-900 dark:text-white">"Backup & sync"</h2>
+                            <p class="text-xs text-zinc-500">"Save your words to a file, bring them back, or sync them."</p>
                         </div>
                     </div>
                     <button
@@ -280,10 +281,21 @@ fn BackupDialog() -> impl IntoView {
                 </section>
 
                 <section class="space-y-3 pt-2 border-t border-zinc-100 dark:border-dim-800">
+                    <h3 class=SECTION_LABEL>"Sync across devices"</h3>
+                    <SyncPanel />
+                </section>
+
+                <section class="space-y-3 pt-2 border-t border-zinc-100 dark:border-dim-800">
                     <div class="flex items-center justify-between gap-2 text-xs">
                         <span class="flex items-center gap-1.5 text-[11px] text-zinc-500">
                             <Icon name=IconName::ShieldCheck class="w-3.5 h-3.5 text-matcha-500" />
-                            "Saved only in this browser"
+                            {move || {
+                                if state.sync.account.with(Option::is_some) {
+                                    "Saved in this browser and synced"
+                                } else {
+                                    "Saved only in this browser"
+                                }
+                            }}
                         </span>
                         <button
                             type="button"

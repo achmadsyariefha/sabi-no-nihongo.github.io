@@ -346,10 +346,10 @@ An optional sync server that replaces `japanese-daily-word-backend` (Express + P
 | Concern | Choice |
 |---|---|
 | HTTP | **Axum** on Tokio, `tower-http` for CORS (allow the Pages origin, `https://achmadsyariefha.github.io`), tracing, compression |
-| Database | **Postgres** via **SQLx** (compile-time checked queries), migrations in `crates/server/migrations` |
+| Database | **Postgres** via **SQLx**, migrations in `crates/server/migrations`. Queries are checked by integration tests against a real database rather than at compile time, so building needs no database or extra tooling |
 | Auth | `argon2` password hashes, `jsonwebtoken` access tokens |
 | Validation | `core::import` rules + `serde` types shared with the web app |
-| Shared code | `sabi-core` for models, streak, review, SRS — the server is the source of truth for SRS schedules and stats when signed in |
+| Shared code | `sabi-core` for models, streak, review, SRS, import rules and the sync merge rules (`core::sync`) |
 | Hosting | Single binary in a small Docker image on Fly.io / Render / Cloud Run; Postgres on Neon or Supabase |
 
 **Schema** is ported from the Prisma model: `users`, `daily_entries` (example sentence as nullable columns instead of a separate table), `review_sessions`, `card_reviews`, `review_logs`.
@@ -358,13 +358,17 @@ An optional sync server that replaces `japanese-daily-word-backend` (Express + P
 
 | Route | Purpose |
 |---|---|
-| `POST /auth/register`, `POST /auth/login`, `GET/PATCH /auth/me` | Account, daily limit setting |
+| `POST /auth/register`, `POST /auth/login`, `GET/PATCH /auth/me` | Account, daily goal setting (passwords: 8+ characters, Argon2) |
 | `GET/POST /entries`, `GET/PATCH/DELETE /entries/:id` | CRUD; `GET` supports `?since=<updatedAt>` for sync |
 | `GET /stats` | Streaks and counts (computed with `core::streak`) |
 | `GET /review`, `POST /review/reset`, `POST /review/mark` | Daily Known / Need review session |
 | `GET /srs/due`, `POST /srs/review` | SM-2 cards (`core::srs`) |
 
-**Sync model:** the browser keeps `localStorage` as an offline cache. On sign-in it uploads local entries; afterwards it pulls changes with `?since=` and pushes edits, resolving conflicts by latest `updatedAt`.
+| `POST /sync` | Two-way sync used by the web app (below) |
+
+All routes live under `/api`, as in Express. Differences from Express: word ids are chosen by the client and unique per user (imported backups use ids like `"1"`); the daily goal never blocks a new word (it is a goal, not a limit); words take the web app's JSON shape (`exampleSentence`, ms timestamps).
+
+**Sync model:** the browser keeps `localStorage` as the working copy and remembers what the server last confirmed (`core::sync::SyncState`: a cursor plus each word's `updatedAt` and each card's `lastReviewedAt`). A sync sends everything that differs from that (including deletions, found as ids the server has but the browser no longer does) and receives every row changed since the cursor plus the server's copy of everything sent. Both sides keep the newer version: words by `updatedAt`, SM-2 cards by `lastReviewedAt`. Deleted words stay on the server as tombstones so other devices learn about them; a word edited after its deletion comes back. Every write bumps a `change_seq` sequence, which is the cursor. The browser syncs about two seconds after a change, on start, on focus, when back online, and every five minutes. Settings, custom tags and the daily review session stay per device. "Delete all data" signs out first, so it never empties the server.
 
 **Workspace addition:**
 

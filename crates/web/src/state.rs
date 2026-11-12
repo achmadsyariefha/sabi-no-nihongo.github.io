@@ -11,6 +11,7 @@ use sabi_core::settings::{Settings, Theme};
 use sabi_core::{DailyEntry, DailyLimit, DateKey, EntryDraft, StreakStats, tags};
 
 use crate::services::{clock, ids, storage, theme};
+use crate::sync::SyncSignals;
 
 const SETTINGS_KEY: &str = "sabi.settings.v1";
 const ENTRIES_KEY: &str = "sabi.entries.v1";
@@ -44,6 +45,8 @@ pub struct AppState {
     pub due_count: Memo<usize>,
     /// Bumped to fire confetti.
     pub celebrate: RwSignal<u32>,
+    /// Optional sync with a server (see `crate::sync`).
+    pub sync: SyncSignals,
 }
 
 impl AppState {
@@ -106,6 +109,7 @@ impl AppState {
             srs: srs_signal,
             due_count,
             celebrate: RwSignal::new(0),
+            sync: SyncSignals::load(),
         }
     }
 
@@ -201,7 +205,9 @@ impl AppState {
     }
 
     /// Deletes all words, custom tags and review history. Settings stay.
+    /// Signed-in users are signed out first, so the server copy is kept.
     pub fn reset_all(self) {
+        self.sign_out();
         self.editing.set(None);
         self.entries.set(Vec::new());
         self.custom_tags.set(Vec::new());

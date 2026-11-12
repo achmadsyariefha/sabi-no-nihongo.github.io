@@ -9,4 +9,5 @@ pub mod heatmap;
 pub mod icon;
 pub mod navbar;
 pub mod stat_cards;
+pub mod sync_panel;
 pub mod tag_picker;

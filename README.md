@@ -14,8 +14,14 @@ trunk serve --open
 ## Test
 
 ```bash
-cargo test --workspace
-cargo clippy --workspace --target wasm32-unknown-unknown -- -D warnings
+cargo test -p sabi-core -p sabi-web
+cargo clippy -p sabi-core -p sabi-web --target wasm32-unknown-unknown -- -D warnings
+```
+
+Server tests need an empty Postgres database (they skip without one):
+
+```bash
+SABI_TEST_DATABASE_URL=postgres://user:pass@localhost:5432/sabi_test cargo test -p sabi-server
 ```
 
 ## Deploy
@@ -27,7 +33,31 @@ The site is served at <https://achmadsyariefha.github.io/sabi-no-nihongo.github.
 
 To try a subpath build locally: `trunk build --public-url /sabi-no-nihongo.github.io/` (in Git Bash, prefix with `MSYS_NO_PATHCONV=1`).
 
+## Sync server (optional)
+
+The app works fully offline. `crates/server` is an optional Axum + Postgres server that lets several devices share one journal: open **Backup & sync** (the ⤓ button), enter the server address, and sign in or create an account.
+
+Run it locally:
+
+```bash
+cp crates/server/.env.example .env   # then edit it
+export $(grep -v '^#' .env | xargs)
+cargo run -p sabi-server
+```
+
+| Variable | Meaning |
+|---|---|
+| `DATABASE_URL` | Postgres connection string. Tables are created on start. |
+| `JWT_SECRET` | At least 32 random characters, e.g. `openssl rand -hex 32`. |
+| `PORT` | Defaults to `5000`. |
+| `ALLOWED_ORIGINS` | Sites allowed to call the server, comma-separated. Defaults to the GitHub Pages site and `http://localhost:8080`. |
+
+Docker: `docker build -f crates/server/Dockerfile -t sabi-server .` (from the repo root). The image listens on `PORT` (8080 by default) and works on Fly.io, Render or Cloud Run with a hosted Postgres such as Neon or Supabase.
+
+The API matches the old Express backend under `/api` (`/auth`, `/entries`, `/stats`, `/review`, `/srs`), plus `POST /api/sync`, which the web app uses.
+
 ## Layout
 
-- `crates/core` — pure-Rust logic (dates, streaks, review, import/export); no browser code
-- `crates/web` — Leptos UI, browser services (storage, clock, theme)
+- `crates/core` — pure-Rust logic (dates, streaks, review, SM-2, import/export, sync rules); shared by the web app and the server
+- `crates/web` — Leptos UI, browser services (storage, clock, theme, sync)
+- `crates/server` — optional sync server (Axum, SQLx, Postgres)
