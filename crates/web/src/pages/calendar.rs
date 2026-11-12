@@ -198,7 +198,7 @@ pub fn CalendarPage() -> impl IntoView {
                 unit="reviews"
                 counts=state.review_log
                 palette=Palette::Matcha
-                empty_hint="Flashcard reviews will show up here once the Review page is ready."
+                empty_hint="Cards you review on the Review page show up here."
             />
         </div>
     }

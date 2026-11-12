@@ -83,3 +83,7 @@ pub fn save<T: Serialize>(key: &str, value: &T) {
         leptos::logging::warn!("could not save {key}: {err}");
     }
 }
+
+pub fn remove(key: &str) {
+    LocalStorage::delete(key);
+}

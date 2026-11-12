@@ -56,6 +56,13 @@ pub fn TodayPage() -> impl IntoView {
                                 <p class="mt-2 text-sm text-zinc-500 dark:text-dim-400">
                                     "Log your first word today: a word you love, its reading, and its meaning."
                                 </p>
+                                <button
+                                    type="button"
+                                    class="mt-2 text-xs font-semibold text-indigoPaper-600 dark:text-indigoPaper-300 hover:underline"
+                                    on:click=move |_| state.backup_open.set(true)
+                                >
+                                    "Have a backup? Import it"
+                                </button>
                             </div>
                         }
                     })}

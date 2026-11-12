@@ -1,3 +1,4 @@
+pub mod backup_modal;
 pub mod calendar_grid;
 pub mod empty_state;
 pub mod entry_card;
