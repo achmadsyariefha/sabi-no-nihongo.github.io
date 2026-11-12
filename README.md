@@ -54,6 +54,16 @@ cargo run -p sabi-server
 
 Docker: `docker build -f crates/server/Dockerfile -t sabi-server .` (from the repo root). The image listens on `PORT` (8080 by default) and works on Fly.io, Render or Cloud Run with a hosted Postgres such as Neon or Supabase.
 
+### Free hosting: Render + Neon
+
+No credit card needed. [`render.yaml`](render.yaml) describes the server.
+
+1. **Neon** (database): create a project (region: Singapore), then copy the connection string with **connection pooling turned off**. It looks like `postgresql://user:password@ep-....aws.neon.tech/neondb?sslmode=require`.
+2. **Render** (server): New → **Blueprint** → pick this repo. Paste the Neon string as `DATABASE_URL` and apply. `JWT_SECRET` is generated for you. The first build takes about 10 minutes.
+3. Open `https://<service>.onrender.com/api/health`; it should say `{"status":"ok"}`.
+
+Free Render servers sleep after about 15 idle minutes; the first request afterwards takes up to a minute.
+
 The API matches the old Express backend under `/api` (`/auth`, `/entries`, `/stats`, `/review`, `/srs`), plus `POST /api/sync`, which the web app uses.
 
 ## Layout

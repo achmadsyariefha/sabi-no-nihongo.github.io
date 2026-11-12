@@ -97,6 +97,11 @@ pub fn SyncPanel() -> impl IntoView {
                         />
                     </div>
                 </div>
+                <Show when=move || busy.get()>
+                    <p class="text-[11px] text-zinc-500 dark:text-dim-400" role="status">
+                        "A server that was asleep can take up to a minute to wake up."
+                    </p>
+                </Show>
                 <div class="flex flex-wrap items-center justify-end gap-2">
                     <p class="mr-auto text-xs text-sakura-600 dark:text-sakura-400" role="alert">{move || error.get()}</p>
                     <button
@@ -121,7 +126,7 @@ pub fn SyncPanel() -> impl IntoView {
 
     let status_line = move || match s.status.get() {
         SyncStatus::Idle => "Not synced yet.".to_owned(),
-        SyncStatus::Syncing => "Syncing…".to_owned(),
+        SyncStatus::Syncing => "Syncing… (up to a minute if the server was asleep)".to_owned(),
         SyncStatus::Synced(ms) => format!("Synced at {}.", clock_time(ms)),
         SyncStatus::Failed(msg) => msg,
     };
