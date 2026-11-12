@@ -3,7 +3,8 @@
 use std::time::Duration;
 
 use leptos::prelude::*;
-use sabi_core::activity::DayCounts;
+use sabi_core::activity::{self, DayCounts};
+use sabi_core::review::{Mark, ReviewSession};
 use sabi_core::model::{self, DraftError};
 use sabi_core::settings::{Settings, Theme};
 use sabi_core::{DailyEntry, DailyLimit, DateKey, EntryDraft, StreakStats, tags};
@@ -14,6 +15,7 @@ const SETTINGS_KEY: &str = "sabi.settings.v1";
 const ENTRIES_KEY: &str = "sabi.entries.v1";
 const CUSTOM_TAGS_KEY: &str = "sabi.customTags.v1";
 const REVIEW_LOG_KEY: &str = "sabi.reviewLog.v1";
+const REVIEW_SESSION_KEY: &str = "sabi.reviewSession.v1";
 
 #[derive(Clone, Copy)]
 pub struct AppState {
@@ -30,6 +32,10 @@ pub struct AppState {
     pub stats: Memo<StreakStats>,
     /// Flashcards reviewed per day (filled by the Review page).
     pub review_log: RwSignal<DayCounts>,
+    /// Today's flashcard progress; starts over at local midnight.
+    pub review: RwSignal<ReviewSession>,
+    /// Whether the Backup window is open.
+    pub backup_open: RwSignal<bool>,
 }
 
 impl AppState {
@@ -63,17 +69,22 @@ impl AppState {
             });
         });
 
+        let saved_review = storage::load::<Option<ReviewSession>>(REVIEW_SESSION_KEY);
+        let review = RwSignal::new(saved_review.unwrap_or_default().for_today(today.get_untracked()));
+        Effect::new(move |_| review.with(|r| storage::save(REVIEW_SESSION_KEY, r)));
+
         set_interval(
             move || {
                 let now = clock::today();
                 if today.get_untracked() != now {
                     today.set(now);
+                    review.update(|r| *r = std::mem::take(r).for_today(now));
                 }
             },
             Duration::from_secs(60),
         );
 
-        Self { settings, is_dark, entries, custom_tags, editing: RwSignal::new(None), today, stats, review_log }
+        Self { settings, is_dark, entries, custom_tags, editing: RwSignal::new(None), today, stats, review_log, review, backup_open: RwSignal::new(false) }
     }
 
     /// Keeps the `dark` class on <html> in sync with the theme.
@@ -125,6 +136,39 @@ impl AppState {
                 e.updated_at = clock::now_ms();
             }
         });
+    }
+
+    /// Marks a flashcard and counts it in today's review log.
+    pub fn mark_card(self, id: &str, mark: Mark, deck_len: usize) {
+        self.review.update(|r| {
+            r.mark(id, mark, deck_len);
+            r.last_updated = clock::now_ms();
+        });
+        let day = self.today.get_untracked();
+        self.review_log.update(|log| activity::record_review(log, day));
+    }
+
+    /// Adds imported words; a word with the same id is replaced.
+    pub fn import(self, incoming: Vec<DailyEntry>) {
+        let all_tags: Vec<String> = incoming.iter().flat_map(|e| e.tags.iter().cloned()).collect();
+        // normalize_all also removes duplicates across entries.
+        let new_tags = self.custom_tags.with_untracked(|saved| tags::normalize_all(&tags::new_custom_tags(&all_tags, saved)));
+        if !new_tags.is_empty() {
+            self.custom_tags.update(|saved| saved.extend(new_tags));
+        }
+        self.entries.update(|list| sabi_core::import::merge(list, incoming));
+    }
+
+    /// Deletes all words, custom tags and review history. Settings stay.
+    pub fn reset_all(self) {
+        self.editing.set(None);
+        self.entries.set(Vec::new());
+        self.custom_tags.set(Vec::new());
+        self.review.set(ReviewSession::new(self.today.get_untracked()));
+        self.review_log.set(DayCounts::new());
+        for key in [ENTRIES_KEY, CUSTOM_TAGS_KEY, REVIEW_LOG_KEY] {
+            storage::remove(&format!("{key}.backup"));
+        }
     }
 
     /// Removes a tag from the saved list. Entries keep it.

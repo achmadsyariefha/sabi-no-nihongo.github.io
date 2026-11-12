@@ -84,9 +84,10 @@ pub fn Navbar() -> impl IntoView {
                     </button>
                     <button
                         type="button"
-                        class="p-2 rounded-full text-zinc-400 dark:text-dim-600 cursor-not-allowed"
-                        title="Backup & export (coming in Phase 3)"
-                        disabled=true
+                        class="p-2 rounded-full text-zinc-600 dark:text-dim-300 hover:bg-zinc-100 dark:hover:bg-dim-800 transition-colors"
+                        title="Backup & export"
+                        aria-label="Backup & export"
+                        on:click=move |_| state.backup_open.set(true)
                     >
                         <Icon name=IconName::Download class="w-5 h-5" />
                     </button>
