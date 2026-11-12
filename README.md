@@ -62,6 +62,7 @@ No credit card needed. The server runs on Vercel's Container Runtime (Hobby plan
 2. **Vercel** (server): **Add New → Project**, import this repo, keep the root directory, and add these environment variables before deploying:
    `DATABASE_URL` (the Neon string), `JWT_SECRET` (`openssl rand -hex 32`), `ALLOWED_ORIGINS=https://achmadsyariefha.github.io`, `PORT=8080`.
 3. Open `https://<project>.vercel.app/api/health`; it should say `{"status":"ok"}`.
+4. The Pages build fills in the sign-in form with `https://sabi-no-nihongo-sync.vercel.app`. To use another server, add a repository variable `SABI_API_URL` (**Settings → Secrets and variables → Actions → Variables**).
 
 Vercel scales the server to zero after 5 idle minutes; the next request starts it again in a few seconds. [`vercel.json`](vercel.json) skips builds when only the web app changed.
 

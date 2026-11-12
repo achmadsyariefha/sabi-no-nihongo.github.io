@@ -55,6 +55,10 @@ jobs:
           fi
 
       - name: Build
+        # Prefills the sign-in form's server address. Override it with a
+        # repository variable named SABI_API_URL.
+        env:
+          SABI_API_URL: ${{ vars.SABI_API_URL || 'https://sabi-no-nihongo-sync.vercel.app' }}
         run: trunk build --release --public-url "${{ steps.url.outputs.public_url }}"
 
       # Lets deep links like /vault load the app instead of a GitHub 404.
